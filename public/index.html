@@ -129,6 +129,7 @@ button{cursor:pointer}
 .grp:last-child{border-bottom:0;padding-bottom:0}
 .gh{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--p-text);margin:4px 0 4px}
 .gh svg{width:15px;height:15px;stroke:var(--p-sub);fill:none;stroke-width:1.6}
+#stemList{display:grid;gap:2px}
 .stem{display:grid;grid-template-columns:22px minmax(0,1fr);gap:4px 10px;align-items:start;padding:6px 4px;border-radius:5px;cursor:pointer}
 .stem:hover{background:#2C2D31}
 .stem input{appearance:none;-webkit-appearance:none;width:16px;height:16px;margin:2px 0 0;border:1.5px solid #5A5C63;border-radius:3px;background:transparent;display:grid;place-items:center;cursor:pointer}
@@ -272,20 +273,13 @@ const CLIP_DEF=[['scene_01',8.753938,'#5E8FD0'],['scene_02',2.670313,'#78A85E'],
 let acc0=0; const CLIPS=CLIP_DEF.map(([name,d,color])=>{const c={name,start:acc0,end:acc0+d,color};acc0+=d;return c;});
 const TOTAL=acc0;
 
-/* Stem catalogue: same groups, codes and API stem keys as the plugin */
-const GROUPS=[
-  {name:'Dialogue',icon:'<path d="M8 2a2 2 0 0 1 2 2v4a2 2 0 0 1-4 0V4a2 2 0 0 1 2-2zM4.5 7.5a3.5 3.5 0 0 0 7 0M8 11v3"/>',items:[
-    {code:'D',key:'d',name:'Dialogue',color:'--dia'},
-    {code:'D2',key:'d2',name:'Dialogue + Vocals',color:'--dia2'}]},
-  {name:'Music + Effects',icon:'<path d="M6 12V3.5l7-1.5V10.5"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="11.5" cy="10.5" r="1.8"/>',items:[
-    {code:'ME',key:'me',name:'Music + Effects',sub:'dialogue removed',color:'--me'},
-    {code:'ME2 v1',key:'me2',name:'Music + Effects',sub:'dialogue/vocals removed',color:'--me2'},
-    {code:'ME2 v2',key:'me2_v2',name:'Music + Effects',sub:'dialogue/vocals removed, high quality',color:'--me3'}]},
-  {name:'Others',icon:'<path d="M3 8h2l1.5-4 3 8L11 8h2"/>',items:[
-    {code:'M',key:'m',name:'Music only',color:'--mus'},
-    {code:'E',key:'e',name:'Effects only',color:'--sfx'}]}
+/* Output stems. key = API model key on the server: D uses the dialogue + vocals model, ME the high-quality v2 model */
+const ALL=[
+  {code:'D',key:'d2',name:'Dialogue',sub:'speech and sung vocals',color:'--dia'},
+  {code:'ME',key:'me2_v2',name:'Music + Effects',sub:'dialogue and vocals removed',color:'--me'},
+  {code:'M',key:'m',name:'Music only',sub:'score and songs',color:'--mus'},
+  {code:'E',key:'e',name:'Effects only',sub:'foley, ambience and hits',color:'--sfx'}
 ];
-const ALL=GROUPS.flatMap(g=>g.items);
 
 /* ---------- State ---------- */
 let seqs=[], active=0, sel=null, busy=false;
@@ -438,7 +432,7 @@ function renderSource(warn){
   };
 }
 function renderStems(){
-  $('stemList').innerHTML=GROUPS.map(g=>`<div class="grp"><div class="gh"><svg viewBox="0 0 16 16" aria-hidden="true">${g.icon}</svg>${g.name}</div>${g.items.map(s=>{const id='stem-'+s.key;return `<label class="stem" for="${id}"><input type="checkbox" id="${id}" data-code="${s.code}"><b>${s.code} — ${s.name}</b>${s.sub?`<small>${s.sub}</small>`:''}</label>`;}).join('')}</div>`).join('');
+  $('stemList').innerHTML=ALL.map(s=>{const id='stem-'+slug(s.code);return `<label class="stem" for="${id}"><input type="checkbox" id="${id}" data-code="${s.code}"><b>${s.code} — ${s.name}</b><small>${s.sub}</small></label>`;}).join('');
   $('stemList').querySelectorAll('input').forEach(cb=>cb.addEventListener('change',()=>{cb.checked?ui.stems.add(cb.dataset.code):ui.stems.delete(cb.dataset.code);updateGo();}));
 }
 function ready(){return !!mixBuf&&(ui.source==='track'||!!(ui.loaded&&findTrack(ui.loaded.seq,ui.loaded.trackId)));}
@@ -508,7 +502,7 @@ async function runApi(plan,picked){
 async function runFallback(plan,picked){
   // Results saved earlier from the same API (optional, see README)
   if(!plan.fallbackKey)throw new Error('no fallback');
-  const bufs=await Promise.all(picked.map(s=>fetchAudio(`fallback/${plan.fallbackKey}_${s.key}.mp3`)));
+  const bufs=await Promise.all(picked.map(s=>fetchAudio(`fallback/${plan.fallbackKey}_${slug(s.code)}.mp3`)));
   return picked.map((s,i)=>({stem:s,token:null,buf:bufs[i]}));
 }
 
