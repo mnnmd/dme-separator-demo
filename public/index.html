@@ -485,19 +485,21 @@ async function runApi(plan,picked){
   step(0);
   await wait(150);
   step(1, plan.source.type==='sample'?'Upload to separation API':'Upload earlier result to API');
-  const {jobs}=await api('api/separate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:plan.source,stems:picked.map(s=>s.key)})});
-  step(2,`Separating ${picked.length} stem${picked.length>1?'s':''}`);
-  const tokens={}; const started=Date.now();
-  while(Object.keys(tokens).length<jobs.length){
-    if(Date.now()-started>8*60*1000)throw new Error('Separation is taking longer than 8 minutes. Try again in a moment.');
-    await wait(3000);
-    await Promise.all(jobs.filter(j=>!tokens[j.stem]).map(async j=>{
-      const name=`${plan.baseName}_${slug(picked.find(s=>s.key===j.stem).code)}`;
-      const s=await api(`api/status?model=${encodeURIComponent(j.model)}&jobId=${encodeURIComponent(j.jobId)}&name=${encodeURIComponent(name)}`);
-      if(s.status==='failed')throw new Error(`The API could not separate ${picked.find(x=>x.key===j.stem).code}.`);
-      if(s.status==='success')tokens[j.stem]=s.token;
-    }));
-    stepLabel(2,`Separating ${picked.length} stem${picked.length>1?'s':''} · ${Object.keys(tokens).length} of ${jobs.length} done`);
+  const {upload}=await api('api/separate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:plan.source})});
+  // One stem at a time, like the plugin: start a job, wait for it, then start the next
+  const tokens={};
+  for(let i=0;i<picked.length;i++){
+    const s=picked[i], label=`Separating ${s.code}${picked.length>1?` · ${i+1} of ${picked.length}`:''}`;
+    if(i===0)step(2,label); else stepLabel(2,label);
+    const j=await api('api/job',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({upload,stem:s.key})});
+    const name=`${plan.baseName}_${slug(s.code)}`, started=Date.now();
+    while(!tokens[s.key]){
+      if(Date.now()-started>8*60*1000)throw new Error(`Separating ${s.code} is taking longer than 8 minutes. Try again in a moment.`);
+      await wait(3000);
+      const st=await api(`api/status?model=${encodeURIComponent(j.model)}&jobId=${encodeURIComponent(j.jobId)}&name=${encodeURIComponent(name)}`);
+      if(st.status==='failed')throw new Error(`The API could not separate ${s.code}.`);
+      if(st.status==='success')tokens[s.key]=st.token;
+    }
   }
   step(3);
   const bufs=await Promise.all(picked.map(s=>fetchAudio('api/download?token='+encodeURIComponent(tokens[s.key]))));
