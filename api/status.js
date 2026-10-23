@@ -6,7 +6,8 @@ const { MODELS, DOWNLOAD_KEY, HttpError, gaudio, sign, send, handle } = require(
 module.exports = handle(async (req, res) => {
   const { model, jobId, name } = req.query || {};
   if (!Object.values(MODELS).includes(model)) throw new HttpError(400, "Unknown model.");
-  if (!jobId || !/^[\w-]{1,128}$/.test(jobId)) throw new HttpError(400, "Invalid job id.");
+  // Accept whatever id format the API uses; only reject characters that could change the request path
+  if (!jobId || String(jobId).length > 512 || /[\/?#\s\\]/.test(String(jobId))) throw new HttpError(400, "Invalid job id.");
   const j = await gaudio(`/${model}/jobs/${encodeURIComponent(jobId)}`);
   const d = (j && j.resultData) || {};
   if (d.status === "failed") return send(res, 200, { status: "failed" });
