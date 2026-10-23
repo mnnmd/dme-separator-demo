@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DME Separator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 rx=%223%22 fill=%22%231D3A5E%22/%3E%3Cpath d=%22M3 8h2l1.5-4 3 8L11 8h2%22 stroke=%22%234A9BFF%22 stroke-width=%221.6%22 fill=%22none%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: dark editing workspace. Monitor + timeline left, the plugin panel docked right (matches the real CEP panel); stacks on phones. Single dark theme on purpose. */
+:root{
+  color-scheme: dark;
+  --bg:#141517; --panel:#1C1D1F; --panel-2:#232427; --line:#2C2D31; --line-2:#3A3B40;
+  --fg:#E6E7EA; --muted:#8E9097; --faint:#5F6168;
+  --p-bg:#1E1F21; --p-card:#26272A; --p-card-2:#2E2F33; --p-text:#D9DADD; --p-sub:#7C7E85;
+  --blue:#4A9BFF; --blue-bg:#1D3A5E; --blue-line:#2C5C96; --panel-focus:#2F5E9E;
+  --mix:#7F8B97; --dia:#E6B04E; --dia2:#D9925A; --me:#8C7FE0; --me2:#7468C9; --me3:#A28CF0; --mus:#4FB5AA; --sfx:#D07892; --video:#3F5B7A;
+  --ok:#5FC28A; --warn:#E8A65B;
+  --f-ui:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --hw:136px;
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{margin:0}
+[hidden]{display:none!important}
+img,video{max-width:100%}
+body{font-family:var(--f-ui);font-size:14px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
+*{box-sizing:border-box}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.top{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;max-width:1280px;margin:0 auto 14px}
+.top h1{font-size:20px;font-weight:700;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.top p{margin:4px 0 0;color:var(--muted);max-width:70ch}
+.badge{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line-2);border-radius:999px;padding:3px 10px;white-space:nowrap}
+
+.app{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:10px;align-items:start}
+@media (max-width:900px){.app{grid-template-columns:minmax(0,1fr)}}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:6px;min-width:0}
+.pane-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.left{display:grid;gap:10px;min-width:0}
+
+/* Program monitor */
+.monitor-body{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;padding:14px}
+@media (max-width:560px){.monitor-body{grid-template-columns:minmax(0,1fr)}}
+.screen{aspect-ratio:16/9;max-width:100%;border-radius:4px;background:#000;position:relative;overflow:hidden;display:flex;align-items:flex-end}
+.screen video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+.screen .lower{position:relative;margin:10px;padding:4px 8px;background:rgba(10,14,18,.7);border-radius:3px;font-size:12px;color:#C9D1D9}
+.readout{display:grid;gap:10px;align-content:start;min-width:0}
+.tc{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:28px;letter-spacing:.02em}
+.meters{display:grid;gap:7px}
+.meter{display:grid;grid-template-columns:110px minmax(0,1fr);align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.meter span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meter .bar{height:8px;background:var(--panel-2);border-radius:2px;overflow:hidden}
+.meter .fill{height:100%;width:0;border-radius:2px;transition:width 60ms linear}
+.meter.off{opacity:.4}
+.hint{font-size:12px;color:var(--faint)}
+
+/* Sequence tabs + transport */
+.seqtabs{display:flex;gap:2px;padding:6px 8px 0;border-bottom:1px solid var(--line);overflow-x:auto}
+.seqtab{border:0;background:transparent;color:var(--muted);font-size:12px;padding:6px 12px;border-radius:4px 4px 0 0;white-space:nowrap;border-bottom:2px solid transparent}
+.seqtab[aria-selected="true"]{color:var(--fg);background:var(--panel-2);border-bottom-color:var(--blue)}
+.seqtab.new{animation:enter .45s ease-out both}
+.transport{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.play{width:34px;height:30px;border-radius:4px;border:1px solid var(--line-2);background:var(--panel-2);display:grid;place-items:center}
+.play:hover{border-color:var(--blue)}
+.play svg{width:14px;height:14px;fill:var(--fg)}
+.tc-sm{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px}
+.transport .hint{margin-left:auto}
+
+/* Timeline */
+.tl-scroll{overflow-x:auto;overscroll-behavior-x:contain}
+.tl-inner{position:relative;min-width:max-content}
+.row{display:flex;border-bottom:1px solid var(--line);min-height:56px}
+.th{position:sticky;left:0;z-index:3;width:var(--hw);flex:none;background:var(--panel-2);border-right:1px solid var(--line);padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.th .nm{display:flex;align-items:center;gap:6px;font-weight:600;font-size:12px}
+.th .nm i{width:8px;height:8px;border-radius:2px;flex:none}
+.th .lb{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ms{display:flex;gap:4px}
+.ms button{width:22px;height:18px;font-size:10px;font-weight:700;border-radius:3px;border:1px solid var(--line-2);background:transparent;color:var(--muted);padding:0}
+.ms button[aria-pressed="true"].m{background:#8A6A2A;border-color:#8A6A2A;color:#FFF3DA}
+.ms button[aria-pressed="true"].s{background:#2F6D55;border-color:#2F6D55;color:#E6FFF4}
+.lane{position:relative;flex:none;cursor:text}
+.clip{position:absolute;top:6px;bottom:6px;left:0;border-radius:3px;overflow:hidden;border:1px solid transparent}
+.clip.pick{cursor:pointer}
+.clip .cn{position:absolute;left:6px;top:3px;font-size:10.5px;font-weight:600;color:rgba(255,255,255,.9);text-shadow:0 1px 2px rgba(0,0,0,.6);pointer-events:none;white-space:nowrap}
+.clip canvas{position:absolute;inset:0;width:100%;height:100%}
+.clip.sel{border-color:#fff;box-shadow:0 0 0 1px #fff}
+.clip.trk{border:1px dashed var(--blue);box-shadow:0 0 0 1px rgba(74,155,255,.35)}
+.gap{position:absolute;top:6px;bottom:6px;display:grid;place-items:center;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);pointer-events:none;background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(255,255,255,.03) 6px 12px)}
+.clip.dim{opacity:.35}
+.clip.video{background:repeating-linear-gradient(90deg,#33506E 0 86px,#2B4560 86px 88px)}
+.row.ruler{min-height:26px}
+.row.ruler .th{font-size:10px;color:var(--faint);letter-spacing:.06em}
+.ticks{position:relative;height:26px}
+.ticks span{position:absolute;bottom:0;height:7px;border-left:1px solid var(--line-2)}
+.ticks span.maj{height:12px}
+.ticks em{position:absolute;top:3px;font-style:normal;font-family:var(--f-mono);font-size:10px;color:var(--faint);transform:translateX(3px)}
+.playhead{position:absolute;top:0;bottom:0;width:0;border-left:1px solid #FF5F5F;z-index:4;pointer-events:none}
+.playhead::before{content:"";position:absolute;top:0;left:-6px;border:6px solid transparent;border-top:8px solid #FF5F5F}
+.row.enter{animation:enter .45s ease-out both}
+@keyframes enter{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* ---------- Plugin panel (mirrors the CEP panel) ---------- */
+.plugin{background:var(--p-bg);border:1px solid var(--panel-focus);border-radius:6px;min-width:0;color:var(--p-text)}
+.ptab{display:flex;align-items:center;gap:10px;padding:9px 14px;font-size:13px;color:var(--p-text);border-bottom:1px solid #2A2B2E}
+.ptab svg{width:14px;height:14px;stroke:var(--p-sub);fill:none;stroke-width:1.6}
+.pbody{padding:14px 14px 18px;display:grid;gap:10px}
+.ptitle{font-size:19px;font-weight:700;margin:2px 2px 6px;letter-spacing:-.005em}
+.card{background:var(--p-card);border-radius:8px;padding:14px;display:grid;gap:12px}
+.sec{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--p-sub)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.seg button{height:34px;border-radius:5px;border:1px solid transparent;background:var(--p-card-2);color:var(--p-sub);font-size:13px;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--blue-bg);border-color:var(--blue-line);color:var(--blue)}
+.srcbox{border:1px dashed #44464C;border-radius:6px;padding:14px;display:grid;gap:12px;text-align:center;font-size:13px;color:var(--p-sub);line-height:1.6}
+.srcbox.loaded{border-style:solid;border-color:#3A3C42;text-align:left;color:var(--p-text)}
+.srcbox .clipname{font-weight:600;word-break:break-all}
+.srcbox .meta{font-family:var(--f-mono);font-size:11.5px;color:var(--p-sub)}
+.srcbox .warn{color:var(--warn)}
+.tsel{width:100%;height:34px;border-radius:5px;border:1px solid #3A3C42;background:var(--p-card-2);color:var(--p-text);padding:0 8px;font-size:13px}
+.btn2{height:34px;border-radius:5px;border:0;background:var(--p-card-2);color:var(--p-text);font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn2:hover{background:#36373C}
+.btn2 svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.8}
+.grp{display:grid;gap:4px;padding-bottom:10px;border-bottom:1px solid #313236}
+.grp:last-child{border-bottom:0;padding-bottom:0}
+.gh{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--p-text);margin:4px 0 4px}
+.gh svg{width:15px;height:15px;stroke:var(--p-sub);fill:none;stroke-width:1.6}
+.stem{display:grid;grid-template-columns:22px minmax(0,1fr);gap:4px 10px;align-items:start;padding:6px 4px;border-radius:5px;cursor:pointer}
+.stem:hover{background:#2C2D31}
+.stem input{appearance:none;-webkit-appearance:none;width:16px;height:16px;margin:2px 0 0;border:1.5px solid #5A5C63;border-radius:3px;background:transparent;display:grid;place-items:center;cursor:pointer}
+.stem input:checked{background:var(--blue);border-color:var(--blue)}
+.stem input:checked::after{content:"";width:5px;height:9px;border:solid #0B1622;border-width:0 2px 2px 0;transform:translateY(-1px) rotate(45deg)}
+.stem b{font-weight:600;font-size:14px}
+.stem small{grid-column:2;display:block;color:var(--p-sub);font-size:12px;margin-top:-4px}
+.row2{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px}
+.fmt{display:flex;gap:4px}
+.fmt button{height:28px;min-width:46px;padding:0 10px;border-radius:5px;border:1px solid transparent;background:var(--p-card-2);color:var(--p-sub);font-size:12.5px;font-weight:500}
+.fmt button[aria-pressed="true"]{background:var(--blue-bg);border-color:var(--blue-line);color:var(--blue)}
+.radios{display:grid;gap:8px;padding-left:2px}
+.radio{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--p-sub);cursor:pointer}
+.radio:has(input:checked){color:var(--p-text)}
+.radio input{appearance:none;-webkit-appearance:none;width:17px;height:17px;margin:0;border:1.5px solid #5A5C63;border-radius:50%;display:grid;place-items:center;cursor:pointer}
+.radio input:checked{border-color:var(--blue)}
+.radio input:checked::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--blue)}
+.go{position:relative;overflow:hidden;height:46px;border-radius:8px;border:0;background:var(--blue);color:#08131F;font-size:15px;font-weight:600}
+.go:disabled{background:var(--p-card);color:#55575D;cursor:not-allowed}
+.go .fill{position:absolute;inset:0 auto 0 0;width:0;background:rgba(74,155,255,.28);transition:width .25s ease}
+.go.running{background:var(--p-card);color:var(--p-text);cursor:progress}
+.go span{position:relative}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:12.5px}
+.steps li{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;gap:8px;color:var(--faint)}
+.steps li .dot{width:10px;height:10px;border-radius:50%;border:1.5px solid #4A4C52;justify-self:center}
+.steps li.active{color:var(--p-text)}
+.steps li.active .dot{border-color:var(--blue);border-top-color:transparent;animation:spin .7s linear infinite}
+.steps li.done{color:var(--p-sub)}
+.steps li.done .dot{background:var(--ok);border-color:var(--ok)}
+.steps li .t{font-family:var(--f-mono);font-size:11px;color:var(--faint)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.result{font-size:12.5px;color:var(--p-sub);line-height:1.6}
+.result code{font-family:var(--f-mono);font-size:11.5px;color:var(--p-text)}
+.link{background:none;border:0;padding:0;color:var(--blue);font-size:12.5px;text-decoration:underline;text-underline-offset:2px;justify-self:start}
+.note{font-size:11.5px;color:var(--faint);padding:2px 4px 0}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);opacity:0;background:#2A2C31;border:1px solid var(--line-2);color:var(--fg);padding:9px 14px;border-radius:6px;font-size:13px;transition:.25s;pointer-events:none;max-width:calc(100vw - 32px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.loading{padding:28px;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.badge.live{display:inline-flex;align-items:center;gap:7px;color:var(--fg);border-color:#2F5E46}
+.badge.live i{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(95,194,138,.18)}
+.steps li.fail{color:#F07A6A}
+.steps li.fail .dot{background:#F07A6A;border-color:#F07A6A}
+.err{color:#F07A6A}
+.credit{max-width:1280px;margin:18px auto 0;font-size:12px;color:var(--faint)}
+.credit a{color:var(--muted)}
+.tsel{width:100%}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>DME Separator</h1>
+    <p>A Premiere Pro panel that splits dialogue, music and effects without leaving the edit. This page recreates the panel in a simulated editor. Separation runs on the real API.</p>
+  </div>
+  <span class="badge live"><i></i>Live · real separation API</span>
+</header>
+
+<main class="app">
+  <div class="left">
+    <section class="pane" aria-label="Program monitor">
+      <div class="pane-h"><span id="progName">Program · Sequence 01</span><span class="mono">24 fps</span></div>
+      <div class="monitor-body">
+        <div class="screen">
+          <video id="prog" src="media/program.mp4" poster="media/poster.jpg" muted playsinline preload="auto"></video>
+          <div class="lower" id="lower">scene_01</div>
+        </div>
+        <div class="readout">
+          <div class="tc" id="tcBig">00:00:00</div>
+          <div class="meters" id="meters" aria-label="Track levels"></div>
+          <div class="hint">Levels show which tracks are sounding. Use M and S on a track to mute or solo it.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" aria-label="Timeline">
+      <div class="seqtabs" id="seqtabs" role="tablist"></div>
+      <div class="transport">
+        <button class="play" id="playBtn" aria-label="Play"><svg viewBox="0 0 16 16" id="playIcon"><path d="M4 2.5v11l9-5.5z"/></svg></button>
+        <span class="tc-sm" id="tcSmall">00:00:00:00 / 00:00:32:05</span>
+        <span class="hint">Space to play · click the ruler to seek</span>
+      </div>
+      <div class="tl-scroll">
+        <div class="tl-inner" id="tlInner"><div class="loading" id="loading">Loading the sample sequence…</div></div>
+      </div>
+    </section>
+  </div>
+
+  <aside class="plugin" aria-label="DME Separator panel">
+    <div class="ptab">DME Separator <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12"/></svg></div>
+    <div class="pbody">
+      <div class="ptitle">DME Separator</div>
+
+      <section class="card" aria-labelledby="s1">
+        <div class="sec" id="s1">1 — Source</div>
+        <div class="seg" role="group" aria-label="Source">
+          <button id="srcClip" aria-pressed="true">Selected Clip</button>
+          <button id="srcTrack" aria-pressed="false">Full Track</button>
+        </div>
+        <div class="srcbox" id="srcBox"></div>
+      </section>
+
+      <section class="card" aria-labelledby="s2">
+        <div class="sec" id="s2">2 — Output Stems</div>
+        <div id="stemList"></div>
+      </section>
+
+      <section class="card" aria-labelledby="s3">
+        <div class="sec" id="s3">3 — Settings</div>
+        <div class="row2"><span>Format</span>
+          <div class="fmt" role="group" aria-label="Format"><button id="fmtWav" aria-pressed="true">WAV</button><button id="fmtMp3" aria-pressed="false">MP3</button></div>
+        </div>
+        <div style="font-size:14px">Output to</div>
+        <div class="radios" role="radiogroup" aria-label="Output to">
+          <label class="radio"><input type="radio" name="out" id="outCur" value="current">Add tracks to current sequence</label>
+          <label class="radio"><input type="radio" name="out" id="outNew" value="new" checked>Create new sequence</label>
+        </div>
+      </section>
+
+      <button class="go" id="goBtn" disabled><div class="fill" id="goFill"></div><span id="goTxt">Select a clip to start</span></button>
+      <ol class="steps" id="steps" hidden></ol>
+      <div class="result" id="result" hidden></div>
+      <button class="link" id="resetBtn" hidden>Reset demo</button>
+      <p class="note">Each run sends the selected audio to the separation API, so it can take a minute or two. The API key stays on the server.</p>
+    </div>
+  </aside>
+</main>
+<footer class="credit">Sample footage: <a href="https://mango.blender.org" target="_blank" rel="noopener">Tears of Steel</a> by the Blender Foundation, licensed <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>. Four shots were trimmed and joined for this demo.</footer>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(()=>{
+const PPS=40, HW=136, FPS=24;
+const $=id=>document.getElementById(id);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+/* Four shots laid back to back on one track */
+const CLIP_DEF=[['scene_01',8.753938,'#5E8FD0'],['scene_02',2.670313,'#78A85E'],['scene_03',5.503146,'#C0605E'],['scene_04',15.301958,'#A0789C']];
+let acc0=0; const CLIPS=CLIP_DEF.map(([name,d,color])=>{const c={name,start:acc0,end:acc0+d,color};acc0+=d;return c;});
+const TOTAL=acc0;
+
+/* Stem catalogue: same groups, codes and API stem keys as the plugin */
+const GROUPS=[
+  {name:'Dialogue',icon:'<path d="M8 2a2 2 0 0 1 2 2v4a2 2 0 0 1-4 0V4a2 2 0 0 1 2-2zM4.5 7.5a3.5 3.5 0 0 0 7 0M8 11v3"/>',items:[
+    {code:'D',key:'d',name:'Dialogue',color:'--dia'},
+    {code:'D2',key:'d2',name:'Dialogue + Vocals',color:'--dia2'}]},
+  {name:'Music + Effects',icon:'<path d="M6 12V3.5l7-1.5V10.5"/><circle cx="4.5" cy="12" r="1.8"/><circle cx="11.5" cy="10.5" r="1.8"/>',items:[
+    {code:'ME',key:'me',name:'Music + Effects',sub:'dialogue removed',color:'--me'},
+    {code:'ME2 v1',key:'me2',name:'Music + Effects',sub:'dialogue/vocals removed',color:'--me2'},
+    {code:'ME2 v2',key:'me2_v2',name:'Music + Effects',sub:'dialogue/vocals removed, high quality',color:'--me3'}]},
+  {name:'Others',icon:'<path d="M3 8h2l1.5-4 3 8L11 8h2"/>',items:[
+    {code:'M',key:'m',name:'Music only',color:'--mus'},
+    {code:'E',key:'e',name:'Effects only',color:'--sfx'}]}
+];
+const ALL=GROUPS.flatMap(g=>g.items);
+
+/* ---------- State ---------- */
+let seqs=[], active=0, sel=null, busy=false;
+const ui={source:'clip', loaded:null, trackId:'a1', stems:new Set(), format:'wav'};
+let actx=null, playing=false, startAt=0, offset=0, nodes=[];
+const tracks=()=>seqs[active].tracks;
+let mixBuf=null;
+
+function videoTrack(){return {id:'v1',kind:'video',name:'V1',label:'Picture · 4 clips',clips:CLIPS.map(c=>({...c,file:c.name+'.mp4'}))};}
+function baseSeq(){return {name:'Sequence 01',tracks:[videoTrack(),
+  {id:'a1',kind:'audio',name:'A1',label:'Production audio · 4 clips',original:true,color:'--mix',buf:mixBuf,bufStart:0,fileStart:0,fileEnd:TOTAL,
+   clips:CLIPS.map(c=>({...c,file:c.name+'.wav'})),muted:false,solo:false}]};}
+function renumber(ts){let n=1;ts.forEach(t=>{if(t.kind==='audio')t.name='A'+(n++);});}
+
+/* ---------- Helpers ---------- */
+const tc=t=>{t=Math.max(0,t);const s=Math.floor(t),f=Math.floor((t-s)*FPS);return '00:00:'+String(s).padStart(2,'0')+':'+String(f).padStart(2,'0');};
+const slug=c=>c.replace(/\s+/g,'').toLowerCase();
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+function decodeCtx(){return new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(2,1,44100);}
+async function decode(arr){return await decodeCtx().decodeAudioData(arr);}
+function mono(buf){if(!buf._mono){const a=buf.getChannelData(0);if(buf.numberOfChannels>1){const b=buf.getChannelData(1),m=new Float32Array(a.length);for(let i=0;i<a.length;i++)m[i]=(a[i]+b[i])*.5;buf._mono=m;}else buf._mono=a;}return buf._mono;}
+
+/* ---------- Timeline ---------- */
+function drawWave(canvas,t,c,color){
+  const w=Math.max(1,Math.round((c.end-c.start)*PPS)),h=42,dpr=window.devicePixelRatio||1; canvas.width=w*dpr; canvas.height=h*dpr;
+  const g=canvas.getContext('2d'); g.scale(dpr,dpr); g.fillStyle=color; g.globalAlpha=.22; g.fillRect(0,0,w,h); g.globalAlpha=.95;
+  if(!t.buf)return;
+  const d=mono(t.buf),sr=t.buf.sampleRate,i0=Math.floor((c.start-t.bufStart)*sr),per=Math.max(1,Math.floor((c.end-c.start)*sr/w)),mid=h/2+4;
+  let peak=0.0001; for(let i=Math.max(0,i0);i<Math.min(d.length,i0+per*w);i+=4)peak=Math.max(peak,Math.abs(d[i]));
+  const k=Math.min(1/peak,4);
+  for(let x=0;x<w;x++){let mn=0,mx=0;for(let i=i0+x*per;i<i0+(x+1)*per;i+=2){if(i<0||i>=d.length)continue;const v=d[i]*k;if(v<mn)mn=v;if(v>mx)mx=v;}
+    const y1=mid-Math.min(1,mx)*(h/2-6),y2=mid-Math.max(-1,mn)*(h/2-6);g.fillRect(x,y1,1,Math.max(1,y2-y1));}
+}
+function audible(t){if(t.kind!=='audio')return false;const anySolo=tracks().some(x=>x.solo);return anySolo?t.solo:!t.muted;}
+function renderTabs(newIdx){
+  $('seqtabs').innerHTML='';
+  seqs.forEach((s,i)=>{const b=document.createElement('button');b.className='seqtab'+(i===newIdx?' new':'');b.setAttribute('role','tab');b.textContent=s.name;b.setAttribute('aria-selected',String(i===active));
+    b.onclick=()=>{if(i===active||busy)return;active=i;renderTabs();renderTimeline();if(ui.source==='track'){renderSource();updateGo();}if(playing)startNodes();};$('seqtabs').appendChild(b);});
+  $('progName').textContent='Program · '+seqs[active].name;
+}
+function renderTimeline(newIds=[]){
+  const inner=$('tlInner'); inner.innerHTML='';
+  const ruler=document.createElement('div'); ruler.className='row ruler'; ruler.innerHTML='<div class="th">TIME</div>';
+  const ticks=document.createElement('div'); ticks.className='ticks lane'; ticks.style.width=(TOTAL*PPS)+'px';
+  for(let s=0;s<=Math.floor(TOTAL);s++){const sp=document.createElement('span');sp.style.left=(s*PPS)+'px';if(s%5===0){sp.className='maj';const em=document.createElement('em');em.textContent='00:'+String(s).padStart(2,'0');em.style.left=(s*PPS)+'px';ticks.appendChild(em);}ticks.appendChild(sp);}
+  ticks.addEventListener('pointerdown',seekFromEvent); ruler.appendChild(ticks); inner.appendChild(ruler);
+  tracks().forEach(t=>{
+    const row=document.createElement('div'); row.className='row'+(newIds.includes(t.id)?' enter':'');
+    const th=document.createElement('div'); th.className='th';
+    th.innerHTML=`<div class="nm"><i style="background:${t.kind==='video'?'var(--video)':'var('+t.color+')'}"></i>${t.name}</div><div class="lb" title="${t.label}">${t.label}</div>`;
+    if(t.kind==='audio'){const ms=document.createElement('div');ms.className='ms';
+      for(const k of ['m','s']){const b=document.createElement('button');b.className=k;b.textContent=k.toUpperCase();b.setAttribute('aria-pressed',String(k==='m'?t.muted:t.solo));b.setAttribute('aria-label',(k==='m'?'Mute ':'Solo ')+t.name);
+        b.onclick=()=>{if(k==='m')t.muted=!t.muted;else t.solo=!t.solo;renderTimeline();applyGains();};ms.appendChild(b);}
+      th.appendChild(ms);}
+    row.appendChild(th);
+    const lane=document.createElement('div'); lane.className='lane'; lane.style.width=(TOTAL*PPS)+'px';
+    lane.addEventListener('pointerdown',e=>{if(e.target===lane){seekFromEvent(e);if(sel){sel=null;renderTimeline();if(ui.source==='clip')renderSource();}}});
+    (t.clips||[]).forEach((c,ci)=>{
+      const clip=document.createElement('div'); clip.className='clip'; clip.style.left=(c.start*PPS)+'px'; clip.style.width=((c.end-c.start)*PPS)+'px';
+      if(ci>0)clip.style.borderLeft='1px solid rgba(0,0,0,.55)';
+      if(t.kind==='video'){clip.classList.add('video');clip.style.background=`repeating-linear-gradient(90deg,${c.color}99 0 86px,${c.color}66 86px 88px)`;clip.innerHTML=`<span class="cn">${c.file}</span>`;}
+      else{
+        const cv=document.createElement('canvas'); clip.appendChild(cv); drawWave(cv,t,c,t.original?c.color:css(t.color));
+        const cn=document.createElement('span'); cn.className='cn'; cn.textContent=c.file; clip.appendChild(cn);
+        const on=!!(ui.source==='clip'&&sel&&sel.seq===active&&sel.trackId===t.id&&sel.ci===ci);
+        clip.classList.add('pick'); clip.classList.toggle('sel',on);
+        if(ui.source==='track'&&ui.trackId===t.id)clip.classList.add('trk');
+        clip.setAttribute('role','button'); clip.tabIndex=0; clip.setAttribute('aria-pressed',String(on)); clip.setAttribute('aria-label','Select clip '+c.file+' on '+t.name);
+        const toggle=()=>{if(busy)return;if(ui.source==='track'){ui.trackId=t.id;renderTimeline();renderSource();return;}sel=on?null:{seq:active,trackId:t.id,ci};renderTimeline();renderSource();};
+        clip.addEventListener('click',toggle); clip.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();}});
+        if(!audible(t))clip.classList.add('dim');
+      }
+      lane.appendChild(clip);
+    });
+    row.appendChild(lane); inner.appendChild(row);
+  });
+  const ph=document.createElement('div'); ph.className='playhead'; ph.id='playhead'; inner.appendChild(ph);
+  renderMeters(); positionPlayhead();
+}
+function renderMeters(){
+  const m=$('meters'); m.innerHTML='';
+  tracks().filter(t=>t.kind==='audio').forEach(t=>{const row=document.createElement('div');row.className='meter'+(audible(t)?'':' off');
+    row.innerHTML=`<span>${t.name} · ${t.original?'Mix':t.code}</span><div class="bar"><div class="fill" data-id="${t.id}" style="background:var(${t.color})"></div></div>`;m.appendChild(row);});
+}
+
+/* ---------- Playback (audio through Web Audio, picture follows) ---------- */
+const vid=()=>$('prog');
+const now=()=>playing?Math.min(TOTAL,offset+(actx.currentTime-startAt)):offset;
+function stopNodes(){nodes.forEach(n=>{try{n.src.stop();}catch(e){}});nodes=[];}
+function startNodes(){
+  stopNodes(); startAt=actx.currentTime;
+  tracks().filter(t=>t.kind==='audio'&&t.buf).forEach(t=>{
+    const rel=offset-t.bufStart; if(rel>=t.buf.duration)return;
+    const src=actx.createBufferSource(); src.buffer=t.buf; const g=actx.createGain(); g.gain.value=audible(t)?1:0;
+    src.connect(g); g.connect(actx.destination);
+    if(rel<0)src.start(actx.currentTime-rel,0); else src.start(actx.currentTime,rel);
+    nodes.push({id:t.id,src,g});
+  });
+}
+function applyGains(){if(!actx)return;nodes.forEach(n=>{const t=tracks().find(x=>x.id===n.id);n.g.gain.setTargetAtTime(t&&audible(t)?1:0,actx.currentTime,0.015);});}
+function setIcon(){$('playIcon').innerHTML=playing?'<path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/>':'<path d="M4 2.5v11l9-5.5z"/>';$('playBtn').setAttribute('aria-label',playing?'Pause':'Play');}
+async function togglePlay(){
+  if(!mixBuf)return;
+  if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){toast('Audio playback is not available in this browser.');return;}}
+  if(actx.state==='suspended')await actx.resume();
+  if(playing){offset=now();playing=false;stopNodes();vid().pause();}
+  else{if(offset>=TOTAL-0.02)offset=0;playing=true;startNodes();try{vid().currentTime=offset;vid().play().catch(()=>{});}catch(e){}}
+  setIcon();
+}
+function seekTo(t){offset=Math.max(0,Math.min(TOTAL,t));if(playing)startNodes();try{vid().currentTime=Math.min(offset,(vid().duration||TOTAL)-0.05);}catch(e){}positionPlayhead();}
+function seekFromEvent(e){const r=e.currentTarget.getBoundingClientRect();seekTo((e.clientX-r.left)/PPS);}
+function positionPlayhead(){const ph=$('playhead');const t=now();if(ph)ph.style.left=(HW+t*PPS)+'px';$('tcBig').textContent=tc(t).slice(3);$('tcSmall').textContent=tc(t)+' / '+tc(TOTAL);
+  const cur=CLIPS.find(c=>t>=c.start&&t<c.end)||CLIPS[CLIPS.length-1], lw=$('lower'); if(lw.textContent!==cur.name)lw.textContent=cur.name;}
+let lastSync=0;
+function loop(ts){
+  if(playing&&now()>=TOTAL){playing=false;offset=TOTAL;stopNodes();vid().pause();setIcon();}
+  positionPlayhead();
+  if(playing&&ts-lastSync>500){lastSync=ts;const v=vid();if(v.readyState>=2&&Math.abs(v.currentTime-now())>0.2){try{v.currentTime=now();}catch(e){}}}
+  const t=now();
+  document.querySelectorAll('.meter .fill').forEach(el=>{const tr=tracks().find(x=>x.id===el.dataset.id);let lvl=0;
+    if(tr&&tr.buf&&playing&&audible(tr)){const d=mono(tr.buf),i0=Math.floor((t-tr.bufStart)*tr.buf.sampleRate);let s=0,n=0;for(let i=Math.max(0,i0);i<i0+900&&i<d.length;i++){s+=d[i]*d[i];n++;}lvl=n?Math.min(1,Math.sqrt(s/n)*3.2):0;}
+    el.style.width=(lvl*100)+'%';});
+  requestAnimationFrame(loop);
+}
+
+/* ---------- Plugin panel ---------- */
+const refreshIcon='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5V5h-2.5"/></svg>';
+function findTrack(si,id){return seqs[si]&&seqs[si].tracks.find(t=>t.id===id);}
+function ensureTrack(){const ats=tracks().filter(t=>t.kind==='audio');if(!ats.find(t=>t.id===ui.trackId))ui.trackId=ats[0]&&ats[0].id;}
+const trackDesc=t=>t.original?'Production audio':t.label;
+function renderSource(warn){
+  const box=$('srcBox'); let html;
+  if(ui.source==='clip'){
+    const L=ui.loaded, t=L&&findTrack(L.seq,L.trackId);
+    if(t){const c=t.clips[L.ci], stale=sel&&(sel.seq!==L.seq||sel.trackId!==L.trackId||sel.ci!==L.ci);
+      box.className='srcbox loaded';
+      html=`<div><div class="clipname">${c.file}</div><div class="meta">${t.name} · ${trackDesc(t)}<br>In ${tc(c.start)} · Out ${tc(c.end)}</div>${stale?'<div class="warn" style="font-size:12px;margin-top:6px">Selection changed. Click Refresh to use the new clip.</div>':''}</div>`;}
+    else{box.className='srcbox';html=`<div>${warn?'<span class="warn">No clip selected.</span><br>Click a clip on any audio track, then click Refresh.':'Select a clip on the timeline,<br>then click Refresh.'}</div>`;}
+  }else{
+    ensureTrack(); const ats=tracks().filter(t=>t.kind==='audio'), t=findTrack(active,ui.trackId);
+    box.className='srcbox loaded';
+    html=`<div style="display:grid;gap:8px"><select id="trackSel" class="tsel" aria-label="Track to process">${ats.map(a=>`<option value="${a.id}"${a.id===ui.trackId?' selected':''}>${a.name} · ${trackDesc(a)}</option>`).join('')}</select><div class="meta">${t.clips.length} clip${t.clips.length>1?'s':''} · ${tc(t.fileStart)} to ${tc(t.fileEnd)}</div><div style="font-size:12px;color:var(--p-sub)">All clips are merged into one file per stem. Clip positions on the timeline stay as they are.</div></div>`;
+  }
+  box.innerHTML=html+`<button class="btn2" id="refresh">Refresh ${refreshIcon}</button>`;
+  if($('trackSel'))$('trackSel').onchange=e=>{ui.trackId=e.target.value;renderTimeline();renderSource();};
+  $('refresh').onclick=()=>{
+    if(busy)return;
+    if(ui.source==='track'){const t=findTrack(active,ui.trackId);toast(`${t.name} refreshed: ${t.clips.length} clip${t.clips.length>1?'s':''}.`);return;}
+    if(sel){ui.loaded={...sel};renderSource();updateGo();}else{ui.loaded=null;renderSource(true);updateGo();}
+  };
+}
+function renderStems(){
+  $('stemList').innerHTML=GROUPS.map(g=>`<div class="grp"><div class="gh"><svg viewBox="0 0 16 16" aria-hidden="true">${g.icon}</svg>${g.name}</div>${g.items.map(s=>{const id='stem-'+s.key;return `<label class="stem" for="${id}"><input type="checkbox" id="${id}" data-code="${s.code}"><b>${s.code} — ${s.name}</b>${s.sub?`<small>${s.sub}</small>`:''}</label>`;}).join('')}</div>`).join('');
+  $('stemList').querySelectorAll('input').forEach(cb=>cb.addEventListener('change',()=>{cb.checked?ui.stems.add(cb.dataset.code):ui.stems.delete(cb.dataset.code);updateGo();}));
+}
+function ready(){return !!mixBuf&&(ui.source==='track'||!!(ui.loaded&&findTrack(ui.loaded.seq,ui.loaded.trackId)));}
+function updateGo(){
+  if(busy)return;
+  const b=$('goBtn'),t=$('goTxt'); b.classList.remove('running'); $('goFill').style.width='0';
+  if(!ready()){b.disabled=true;t.textContent='Select a clip to start';}
+  else if(!ui.stems.size){b.disabled=true;t.textContent='Choose output stems';}
+  else{b.disabled=false;t.textContent=`Separate ${ui.stems.size} stem${ui.stems.size>1?'s':''}`;}
+}
+
+/* Live progress, driven by real API state */
+const STEP_NAMES=['Prepare source audio','Upload to separation API','Separate stems','Download results','Place on timeline'];
+let stepState=[];
+function renderSteps(){$('steps').innerHTML=STEP_NAMES.map((n,i)=>{const s=stepState[i]||{};const label=s.label||n;return `<li class="${s.st||''}"><span class="dot"></span><span>${label}</span><span class="t">${s.time!=null?(s.time/1000).toFixed(1)+'s':''}</span></li>`;}).join('');}
+let stepT0=0;
+function step(i,label){stepState.forEach((s,j)=>{if(j<i&&s.st==='active'){s.st='done';s.time=performance.now()-s.t0;}});stepState[i]={st:'active',label,t0:performance.now()};
+  $('goTxt').textContent=(label||STEP_NAMES[i])+'…';$('goFill').style.width=(i/STEP_NAMES.length*100+4)+'%';renderSteps();}
+function stepLabel(i,label){if(stepState[i]){stepState[i].label=label;$('goTxt').textContent=label+'…';renderSteps();}}
+function stepsDone(){stepState.forEach(s=>{if(s.st==='active'){s.st='done';s.time=performance.now()-s.t0;}});$('goFill').style.width='100%';renderSteps();}
+function stepFail(){stepState.forEach(s=>{if(s.st==='active')s.st='fail';});renderSteps();}
+
+async function api(path,opts){
+  const r=await fetch(path,opts); let j=null; try{j=await r.json();}catch(e){}
+  if(!r.ok)throw new Error((j&&j.error)||`Request failed (HTTP ${r.status}).`);
+  return j;
+}
+async function fetchAudio(url){const r=await fetch(url);if(!r.ok){let m=`Download failed (HTTP ${r.status}).`;try{m=(await r.json()).error||m;}catch(e){}throw new Error(m);}return decode(await r.arrayBuffer());}
+
+function planSource(){
+  const full=ui.source==='track';
+  if(full){
+    const t=findTrack(active,ui.trackId);
+    return {full,seqIdx:active,track:t,range:[t.fileStart,t.fileEnd],segments:t.clips,baseName:`${t.name}_full`,fallbackKey:t.original?'full':null,
+      source:t.original?{type:'sample',id:'full'}:{type:'result',token:t.token}};
+  }
+  const L=ui.loaded, t=findTrack(L.seq,L.trackId), c=t.clips[L.ci];
+  const whole=c.start<=t.fileStart+0.01&&c.end>=t.fileEnd-0.01;
+  return {full,seqIdx:L.seq,track:t,range:[c.start,c.end],segments:[c],baseName:c.file.replace(/\.(wav|mp3)$/,''),fallbackKey:t.original?c.name:null,
+    source:t.original?{type:'sample',id:c.name}:(whole?{type:'result',token:t.token}:{type:'result',token:t.token,start:c.start-t.fileStart,end:c.end-t.fileStart})};
+}
+
+async function runApi(plan,picked){
+  step(0);
+  await wait(150);
+  step(1, plan.source.type==='sample'?'Upload to separation API':'Upload earlier result to API');
+  const {jobs}=await api('api/separate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:plan.source,stems:picked.map(s=>s.key)})});
+  step(2,`Separating ${picked.length} stem${picked.length>1?'s':''}`);
+  const tokens={}; const started=Date.now();
+  while(Object.keys(tokens).length<jobs.length){
+    if(Date.now()-started>8*60*1000)throw new Error('Separation is taking longer than 8 minutes. Try again in a moment.');
+    await wait(3000);
+    await Promise.all(jobs.filter(j=>!tokens[j.stem]).map(async j=>{
+      const name=`${plan.baseName}_${slug(picked.find(s=>s.key===j.stem).code)}`;
+      const s=await api(`api/status?model=${encodeURIComponent(j.model)}&jobId=${encodeURIComponent(j.jobId)}&name=${encodeURIComponent(name)}`);
+      if(s.status==='failed')throw new Error(`The API could not separate ${picked.find(x=>x.key===j.stem).code}.`);
+      if(s.status==='success')tokens[j.stem]=s.token;
+    }));
+    stepLabel(2,`Separating ${picked.length} stem${picked.length>1?'s':''} · ${Object.keys(tokens).length} of ${jobs.length} done`);
+  }
+  step(3);
+  const bufs=await Promise.all(picked.map(s=>fetchAudio('api/download?token='+encodeURIComponent(tokens[s.key]))));
+  return picked.map((s,i)=>({stem:s,token:tokens[s.key],buf:bufs[i]}));
+}
+async function runFallback(plan,picked){
+  // Results saved earlier from the same API (optional, see README)
+  if(!plan.fallbackKey)throw new Error('no fallback');
+  const bufs=await Promise.all(picked.map(s=>fetchAudio(`fallback/${plan.fallbackKey}_${s.key}.mp3`)));
+  return picked.map((s,i)=>({stem:s,token:null,buf:bufs[i]}));
+}
+
+async function separate(){
+  if(busy||!ready()||!ui.stems.size)return;
+  const plan=planSource(), picked=ALL.filter(s=>ui.stems.has(s.code)), ext=ui.format, out=document.querySelector('input[name="out"]:checked').value;
+  busy=true; const b=$('goBtn'); b.disabled=true; b.classList.add('running');
+  stepState=[]; $('steps').hidden=false; $('result').hidden=true; $('resetBtn').hidden=true; renderSteps();
+  let results, usedFallback=false, apiError=null;
+  try{ results=await runApi(plan,picked); }
+  catch(e){
+    apiError=e; stepFail();
+    try{ results=await runFallback(plan,picked); usedFallback=true; }catch(f){ results=null; }
+  }
+  if(!results){
+    const r=$('result'); r.hidden=false; r.innerHTML=`<span class="err">Separation failed: ${apiError.message}</span>`;
+    busy=false; updateGo(); $('resetBtn').hidden=false; return;
+  }
+  step(4);
+  const stamp=Date.now()%100000, srcName=plan.track.name, srcCode=plan.track.code;
+  const files=[];
+  const stemTracks=results.map((r,i)=>{
+    const s=r.stem, fname=`${plan.baseName}_${slug(s.code)}.${ext}`; files.push(fname);
+    return {id:'st'+stamp+'_'+i,kind:'audio',code:s.code,color:s.color,label:plan.track.original?`${s.code} · ${s.name}`:`${s.code} · from ${srcCode}`,
+      token:r.token,buf:r.buf,bufStart:plan.range[0],fileStart:plan.range[0],fileEnd:plan.range[1],
+      clips:plan.segments.map(c=>({start:Math.max(c.start,plan.range[0]),end:Math.min(c.end,plan.range[1]),name:c.name,file:fname})),muted:false,solo:false};
+  });
+  let newTab;
+  if(out==='current'){
+    const sq=seqs[plan.seqIdx], at=sq.tracks.findIndex(t=>t.id===plan.track.id);
+    sq.tracks.splice(at,0,...stemTracks); renumber(sq.tracks); active=plan.seqIdx;
+  }else{
+    const n=seqs.filter(s=>s.name.startsWith('Sequence 01_separated')).length;
+    const ts=[videoTrack(),...stemTracks]; renumber(ts);
+    seqs.push({name:'Sequence 01_separated'+(n?' '+(n+1):''),tracks:ts}); active=seqs.length-1; newTab=active;
+  }
+  renderTabs(newTab); renderTimeline(stemTracks.map(t=>t.id)); if(playing)startNodes();
+  stepsDone();
+  const r=$('result'); r.hidden=false;
+  r.innerHTML=`${usedFallback?`<span class="warn">The API did not respond (${apiError.message}). Showing results saved earlier from the same API.</span><br>`:''}${plan.full?`Full Track: ${srcName} (${plan.segments.length} clip${plan.segments.length>1?'s':''}) processed as one file per stem.`:`Selected Clip: only ${plan.segments[0].file} was processed.`}<br>Saved to <code>DME Separator/</code> next to the project:<br>${files.map(f=>`<code>${f}</code>`).join('<br>')}`;
+  busy=false; updateGo(); $('resetBtn').hidden=false;
+  if(usedFallback)stemTracks.forEach(t=>t.token=null);
+  const where=plan.full?'with every clip position kept':'aligned to the clip start';
+  toast(out==='current'?`${stemTracks.length} track${stemTracks.length>1?'s':''} added above ${srcName}, ${where}.`:`Created ${seqs[active].name}, ${where}.`);
+}
+function reset(){
+  if(busy)return;
+  seqs=[baseSeq()]; active=0; sel=null; ui.loaded=null; ui.trackId='a1'; ui.stems.clear();
+  document.querySelectorAll('#stemList input').forEach(c=>c.checked=false);
+  $('steps').hidden=true; $('result').hidden=true; $('resetBtn').hidden=true;
+  renderTabs(); renderTimeline(); renderSource(); updateGo(); if(playing)startNodes(); toast('Demo reset.');
+}
+function setSource(m){if(busy)return;ui.source=m;$('srcClip').setAttribute('aria-pressed',String(m==='clip'));$('srcTrack').setAttribute('aria-pressed',String(m==='track'));renderSource();updateGo();if(seqs.length)renderTimeline();}
+function setFormat(f){ui.format=f;$('fmtWav').setAttribute('aria-pressed',String(f==='wav'));$('fmtMp3').setAttribute('aria-pressed',String(f==='mp3'));}
+let tt; function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),3000);}
+
+/* ---------- Boot ---------- */
+async function boot(){
+  renderStems(); updateGo();
+  $('srcClip').onclick=()=>setSource('clip'); $('srcTrack').onclick=()=>setSource('track');
+  $('fmtWav').onclick=()=>setFormat('wav'); $('fmtMp3').onclick=()=>setFormat('mp3');
+  $('goBtn').onclick=separate; $('resetBtn').onclick=reset; $('playBtn').onclick=togglePlay;
+  document.addEventListener('keydown',e=>{if(e.code==='Space'&&!e.target.closest('button,input,label,select,[role=button]')){e.preventDefault();togglePlay();}});
+  try{ mixBuf=await fetchAudio('media/full_preview.mp3'); }
+  catch(e){ $('loading').textContent='The sample audio could not be loaded. Refresh the page to try again.'; return; }
+  seqs=[baseSeq()]; renderTabs(); renderTimeline(); renderSource(); updateGo(); requestAnimationFrame(loop);
+}
+boot();
+})();
+</script>
+</body>
+</html>
