@@ -2,5 +2,8 @@
   "name": "dme-separator-demo",
   "private": true,
   "description": "Web demo of the DME Separator Premiere Pro panel, calling the real separation API through a serverless proxy.",
-  "engines": { "node": ">=18" }
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@vercel/analytics": "^1.4.1"
+  }
 }
